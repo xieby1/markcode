@@ -25,70 +25,74 @@ const char *file_read(void *payload, uint32_t byte_index, TSPoint _, uint32_t *b
     return line;
 }
 
-void traverse_leaf_nodes(
-    TSNode *root_node, void *callback_data,
-    void (*callback)(TSNode *leaf, void *callback_data)
-) {
-    enum Direction {
-        Dir_Child,
-        Dir_Sibling,
-        Dir_Parent,
-    };
-    enum Direction direction = Dir_Child;
-    TSTreeCursor cursor = ts_tree_cursor_new(*root_node);
+typedef enum {
+    Dir_Child,
+    Dir_Sibling,
+    Dir_Parent,
+} Direction;
+typedef struct {
+    Direction direction;
+    TSTreeCursor cursor;
+} LeafIter;
+void leaf_iter_init(LeafIter *iter, TSNode root_node) {
+    iter->direction = Dir_Child;
+    iter->cursor = ts_tree_cursor_new(root_node);
+}
+bool leaf_iter_next(LeafIter *iter, TSNode *leaf) {
     while (true) {
-        TSNode current_node = ts_tree_cursor_current_node(&cursor);
+        TSNode current_node = ts_tree_cursor_current_node(&iter->cursor);
 
-        if (direction == Dir_Child) {
+        if (iter->direction == Dir_Child) {
             // non-leaf node
-            if (ts_tree_cursor_goto_first_child(&cursor)) {
-                direction = Dir_Child;
+            if (ts_tree_cursor_goto_first_child(&iter->cursor)) {
+                iter->direction = Dir_Child;
             // leaf node
             } else {
-                callback(&current_node, callback_data);
-
-                direction = Dir_Sibling;
+                *leaf = current_node;
+                iter->direction = Dir_Sibling;
+                return true;
             }
-        } else if (direction == Dir_Sibling) {
-            if (ts_tree_cursor_goto_next_sibling(&cursor)) {
-                direction = Dir_Child;
+        } else if (iter->direction == Dir_Sibling) {
+            if (ts_tree_cursor_goto_next_sibling(&iter->cursor)) {
+                iter->direction = Dir_Child;
             } else {
-                direction = Dir_Parent;
+                iter->direction = Dir_Parent;
             }
-        } else if (direction == Dir_Parent) {
-            if (ts_tree_cursor_goto_parent(&cursor)) {
-                direction = Dir_Sibling;
+        } else if (iter->direction == Dir_Parent) {
+            if (ts_tree_cursor_goto_parent(&iter->cursor)) {
+                iter->direction = Dir_Sibling;
             } else {
-                break;
+                return false;
             }
         }
     }
-    ts_tree_cursor_delete(&cursor);
+}
+void leaf_iter_fini(LeafIter *iter) {
+    ts_tree_cursor_delete(&iter->cursor);
 }
 
-void callback_print_node(TSNode *node, void *callback_data) {
-    FILE *file = callback_data;
+void print_node(TSNode node, FILE *file) {
     const TSSymbol TSSymbol_comment = ts_language_symbol_for_name(
         tree_sitter_nix(), "comment", 7, true
     );
 
-    if (ts_node_symbol(*node) != TSSymbol_comment)
+    if (ts_node_symbol(node) != TSSymbol_comment)
         return;
 
-    TSPoint start_point = ts_node_start_point(*node);
-    TSPoint end_point = ts_node_end_point(*node);
+    TSPoint start_point = ts_node_start_point(node);
+    TSPoint end_point = ts_node_end_point(node);
     printf(
         "<%d,%d>~<%d,%d>: ",
         start_point.row, start_point.column,
         end_point.row, end_point.column
     );
 
-    const char *type = ts_node_type(*node);
+    const char *type = ts_node_type(node);
     if (type)
         printf("[%s]: ", type);
 
-    uint32_t start_byte = ts_node_start_byte(*node);
-    uint32_t end_byte = ts_node_end_byte(*node);
+    uint32_t start_byte = ts_node_start_byte(node);
+    uint32_t end_byte = ts_node_end_byte(node);
     fseek(file, start_byte, SEEK_SET);
     for (int b=start_byte; b<end_byte; b++)
         printf("%c", (char)fgetc(file));
@@ -117,7 +121,16 @@ int main(int argc, char **argv) {
     TSTree *tree = ts_parser_parse(parser, NULL, input);
     TSNode root_node = ts_tree_root_node(tree);
 
-    traverse_leaf_nodes(&root_node, payload.file, callback_print_node);
+    const TSSymbol TSSymbol_comment = ts_language_symbol_for_name(
+        tree_sitter_nix(), "comment", 7, true
+    );
+    LeafIter iter;
+    TSNode leaf;
+    leaf_iter_init(&iter, root_node);
+    while (leaf_iter_next(&iter, &leaf)) {
+        print_node(leaf, payload.file);
+    }
+    leaf_iter_fini(&iter);
 
     ts_tree_delete(tree);
     ts_parser_delete(parser);
