@@ -62,6 +62,8 @@ bool leaf_iter_next(LeafIter *iter, TSNode *leaf) {
             if (ts_tree_cursor_goto_parent(&iter->cursor)) {
                 iter->direction = Dir_Sibling;
             } else {
+                leaf->id = NULL;
+                leaf->tree = NULL;
                 return false;
             }
         }
@@ -69,34 +71,6 @@ bool leaf_iter_next(LeafIter *iter, TSNode *leaf) {
 }
 void leaf_iter_fini(LeafIter *iter) {
     ts_tree_cursor_delete(&iter->cursor);
-}
-
-void print_node(TSNode node, FILE *file) {
-    const TSSymbol TSSymbol_comment = ts_language_symbol_for_name(
-        tree_sitter_nix(), "comment", 7, true
-    );
-
-    if (ts_node_symbol(node) != TSSymbol_comment)
-        return;
-
-    TSPoint start_point = ts_node_start_point(node);
-    TSPoint end_point = ts_node_end_point(node);
-    printf(
-        "<%d,%d>~<%d,%d>: ",
-        start_point.row, start_point.column,
-        end_point.row, end_point.column
-    );
-
-    const char *type = ts_node_type(node);
-    if (type)
-        printf("[%s]: ", type);
-
-    uint32_t start_byte = ts_node_start_byte(node);
-    uint32_t end_byte = ts_node_end_byte(node);
-    fseek(file, start_byte, SEEK_SET);
-    for (int b=start_byte; b<end_byte; b++)
-        printf("%c", (char)fgetc(file));
-    printf("\n");
 }
 
 int main(int argc, char **argv) {
@@ -125,12 +99,50 @@ int main(int argc, char **argv) {
         tree_sitter_nix(), "comment", 7, true
     );
     LeafIter iter;
-    TSNode leaf;
+    TSNode prev_leaf={0}, curr_leaf={0}, next_leaf={0};
     leaf_iter_init(&iter, root_node);
-    while (leaf_iter_next(&iter, &leaf)) {
-        print_node(leaf, payload.file);
+    leaf_iter_next(&iter, &curr_leaf);
+    leaf_iter_next(&iter, &next_leaf);
+    rewind(payload.file);
+    bool markdown = true;
+    while (curr_leaf.id) {
+        if (ts_node_symbol(curr_leaf) == TSSymbol_comment &&
+            // current comment node does not share lines with prev nor next node
+            (!prev_leaf.id || (prev_leaf.id && ts_node_end_point(prev_leaf).row != ts_node_start_point(curr_leaf).row)) &&
+            (!next_leaf.id || (next_leaf.id && ts_node_start_point(next_leaf).row != ts_node_end_point(curr_leaf).row))
+        ) {
+            if (!markdown) {
+                printf("```\n\n");
+                markdown = true;
+            }
+        } else {
+            if (markdown) {
+                printf("\n```nix\n");
+                markdown = false;
+            }
+        }
+
+        char *line = NULL;
+        size_t len = 0;
+        ssize_t res;
+        for (
+            long curr_byte = ftell(payload.file);
+            curr_byte < ts_node_end_byte(curr_leaf);
+            curr_byte = ftell(payload.file)
+        ) {
+            if((res = getline(&line, &len, payload.file)) != -1) {
+                printf("%s", line);
+            }
+        }
+        if (line) free(line);
+
+        prev_leaf = curr_leaf;
+        curr_leaf = next_leaf;
+        leaf_iter_next(&iter, &next_leaf);
     }
     leaf_iter_fini(&iter);
+    if (!markdown)
+        printf("```\n");
 
     ts_tree_delete(tree);
     ts_parser_delete(parser);
