@@ -25,6 +25,71 @@ const char *file_read(void *payload, uint32_t byte_index, TSPoint _, uint32_t *b
     return line;
 }
 
+void traverse_leaf_nodes(
+    TSNode *root_node, void *callback_data,
+    void (*callback)(TSNode *leaf, void *callback_data)
+) {
+    enum Direction {
+        Dir_Child,
+        Dir_Sibling,
+        Dir_Parent,
+    };
+    enum Direction direction = Dir_Child;
+    TSTreeCursor cursor = ts_tree_cursor_new(*root_node);
+    while (true) {
+        TSNode current_node = ts_tree_cursor_current_node(&cursor);
+
+        if (direction == Dir_Child) {
+            // non-leaf node
+            if (ts_tree_cursor_goto_first_child(&cursor)) {
+                direction = Dir_Child;
+            // leaf node
+            } else {
+                callback(&current_node, callback_data);
+
+                direction = Dir_Sibling;
+            }
+        } else if (direction == Dir_Sibling) {
+            if (ts_tree_cursor_goto_next_sibling(&cursor)) {
+                direction = Dir_Child;
+            } else {
+                direction = Dir_Parent;
+            }
+        } else if (direction == Dir_Parent) {
+            if (ts_tree_cursor_goto_parent(&cursor)) {
+                direction = Dir_Sibling;
+            } else {
+                break;
+            }
+        }
+    }
+    ts_tree_cursor_delete(&cursor);
+}
+
+void callback_print_node(TSNode *node, void *callback_data) {
+    FILE *file = callback_data;
+
+    TSPoint start_point = ts_node_start_point(*node);
+    TSPoint end_point = ts_node_end_point(*node);
+    printf(
+        "<%d,%d>~<%d,%d>: ",
+        start_point.row, start_point.column,
+        end_point.row, end_point.column
+    );
+
+    char *string = ts_node_string(*node);
+    if (string)
+        printf("%s: ", string);
+    free(string);
+
+    uint32_t start_byte = ts_node_start_byte(*node);
+    uint32_t end_byte = ts_node_end_byte(*node);
+    fseek(file, start_byte, SEEK_SET);
+    for (int b=start_byte; b<end_byte; b++)
+        printf("%c", (char)fgetc(file));
+    printf("\n");
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         printf("Usage: %s <nix file>\n", argv[0]);
@@ -47,69 +112,13 @@ int main(int argc, char **argv) {
     TSTree *tree = ts_parser_parse(parser, NULL, input);
     TSNode root_node = ts_tree_root_node(tree);
 
-    enum Direction {
-        Dir_Child,
-        Dir_Sibling,
-        Dir_Parent,
-    };
-    enum Direction direction = Dir_Child;
-    TSTreeCursor cursor = ts_tree_cursor_new(root_node);
-    while (true) {
-        TSNode current_node = ts_tree_cursor_current_node(&cursor);
-
-        if (direction == Dir_Child) {
-            // non-leaf node
-            if (ts_tree_cursor_goto_first_child(&cursor)) {
-                direction = Dir_Child;
-            // leaf node
-            } else {
-                // print node
-                TSPoint start_point = ts_node_start_point(current_node);
-                TSPoint end_point = ts_node_end_point(current_node);
-                printf(
-                    "<%d,%d>~<%d,%d>: ",
-                    start_point.row, start_point.column,
-                    end_point.row, end_point.column
-                );
-
-                char *string = ts_node_string(current_node);
-                if (string)
-                    printf("%s: ", string);
-                free(string);
-
-                const char *field_name = ts_tree_cursor_current_field_name(&cursor);
-                if (field_name)
-                    printf("[%s]: ", field_name);
-
-                uint32_t start_byte = ts_node_start_byte(current_node);
-                uint32_t end_byte = ts_node_end_byte(current_node);
-                fseek(payload.file, start_byte, SEEK_SET);
-                for (int b=start_byte; b<end_byte; b++)
-                    printf("%c", (char)fgetc(payload.file));
-                printf("\n");
-
-                direction = Dir_Sibling;
-            }
-        } else if (direction == Dir_Sibling) {
-            if (ts_tree_cursor_goto_next_sibling(&cursor)) {
-                direction = Dir_Child;
-            } else {
-                direction = Dir_Parent;
-            }
-        } else if (direction == Dir_Parent) {
-            if (ts_tree_cursor_goto_parent(&cursor)) {
-                direction = Dir_Sibling;
-            } else {
-                break;
-            }
-        }
-    }
-    ts_tree_cursor_delete(&cursor);
+    traverse_leaf_nodes(&root_node, payload.file, callback_print_node);
 
     ts_tree_delete(tree);
     ts_parser_delete(parser);
 
     if (payload.line)
         free(payload.line);
+    fclose(payload.file);
     return 0;
 }

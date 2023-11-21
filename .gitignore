@@ -1,2 +1,3 @@
 .direnv
+.ccls-cache
 nix
