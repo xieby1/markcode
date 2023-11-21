@@ -68,6 +68,12 @@ void traverse_leaf_nodes(
 
 void callback_print_node(TSNode *node, void *callback_data) {
     FILE *file = callback_data;
+    const TSSymbol TSSymbol_comment = ts_language_symbol_for_name(
+        tree_sitter_nix(), "comment", 7, true
+    );
+
+    if (ts_node_symbol(*node) != TSSymbol_comment)
+        return;
 
     TSPoint start_point = ts_node_start_point(*node);
     TSPoint end_point = ts_node_end_point(*node);
@@ -77,10 +83,9 @@ void callback_print_node(TSNode *node, void *callback_data) {
         end_point.row, end_point.column
     );
 
-    char *string = ts_node_string(*node);
-    if (string)
-        printf("%s: ", string);
-    free(string);
+    const char *type = ts_node_type(*node);
+    if (type)
+        printf("[%s]: ", type);
 
     uint32_t start_byte = ts_node_start_byte(*node);
     uint32_t end_byte = ts_node_end_byte(*node);
