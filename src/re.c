@@ -1,6 +1,7 @@
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "re.h"
 
@@ -40,26 +41,50 @@ bool mc_match(
         NULL
     );
 
+    bool ret_val = false;
     if (rc < 0) {
         if (rc == PCRE2_ERROR_NOMATCH) {
             /* fprintf(stderr, "No match\n"); */
         } else {
             fprintf(stderr, "Matching error %d\n", rc);
         }
-        pcre2_match_data_free(match_data);
-        pcre2_code_free(re);
-        return false;
+        goto free;
     }
 
     PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
 
-    if (rc >= 2) {
-        *matched_str = subject + ovector[2];
-        *matched_len = ovector[3] - ovector[2];
-        return true;
+    // named capture
+    uint32_t name_count;
+    pcre2_pattern_info(re, PCRE2_INFO_NAMECOUNT, &name_count);
+    if (name_count == 0) {
+        /* printf("No named substr\n"); */
+        goto free;
     } else {
-        *matched_str = NULL;
-        *matched_len = 0;
-        return false;
+        PCRE2_SPTR name_table;
+        pcre2_pattern_info(re, PCRE2_INFO_NAMETABLE, &name_table);
+        uint32_t name_entry_size;
+        pcre2_pattern_info(re, PCRE2_INFO_NAMEENTRYSIZE, &name_entry_size);
+
+        PCRE2_SPTR tabptr = name_table;
+        for (int i = 0; i < name_count; i++) {
+            int n = (tabptr[0] << 8) | tabptr[1];
+            // TODO: learn how name_table organized
+            // The following snippets are based on pcre2 demo
+            char *name = (char *)tabptr + 2;
+            if (!strcmp("md", name)) {
+                *matched_str = subject + ovector[2*n];
+                *matched_len = ovector[2*n+1] - ovector[2*n];
+                ret_val = true;
+                goto free;
+            }
+            tabptr += name_entry_size;
+        }
     }
+
+    *matched_str = NULL;
+    *matched_len = 0;
+free:
+    pcre2_match_data_free(match_data);
+    pcre2_code_free(re);
+    return ret_val;
 }

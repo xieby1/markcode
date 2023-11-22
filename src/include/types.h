@@ -13,9 +13,9 @@ TSLanguage *tree_sitter_c();
 TSLanguage *tree_sitter_cpp();
 TSLanguage *tree_sitter_nix();
 static const Type types[] = {
-    {"c",       tree_sitter_c,      {"c", "h", NULL},                             "\\s*//+ (.*)"},
-    {"cpp",     tree_sitter_cpp,    {"cc", "cpp", "hh", "hpp", NULL},             "\\s*//+ (.*)"},
-    {"nix",     tree_sitter_nix,    {"nix", NULL},                                "\\s*#+ (.*)"},
+    {"c",       tree_sitter_c,      {"c", "h", NULL},                             "\\s*//+ (?<md>.*)"},
+    {"cpp",     tree_sitter_cpp,    {"cc", "cpp", "hh", "hpp", NULL},             "\\s*//+ (?<md>.*)"},
+    {"nix",     tree_sitter_nix,    {"nix", NULL},                                "\\s*#+ (?<md>.*)"},
 };
 #define types_len sizeof(types) / sizeof(Type)
 
