@@ -1,5 +1,5 @@
 .direnv
 .ccls-cache
-nix
 *.o
 *.d
+markcode
