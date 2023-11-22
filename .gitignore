@@ -1,3 +1,4 @@
 .direnv
 .ccls-cache
 nix
+*.o

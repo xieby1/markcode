@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <tree_sitter/api.h>
 
+#include "re.h"
+
 TSLanguage *tree_sitter_nix();
 
 typedef struct {
@@ -128,13 +130,39 @@ int main(int argc, char **argv) {
     rewind(payload.file);
     bool markdown = true;
     while (curr_leaf.id) {
-        if (ts_node_symbol(curr_leaf) == TSSymbol_comment &&
-            curr_leaf_does_not_share_lines_with_prev_nor_next_leaf(prev_leaf, curr_leaf, next_leaf)
-        ) {
+        bool curr_leaf_is_comment_and_does_not_share_lines_with_prev_nor_next_leaf =
+            ts_node_symbol(curr_leaf) == TSSymbol_comment &&
+            curr_leaf_does_not_share_lines_with_prev_nor_next_leaf(prev_leaf, curr_leaf, next_leaf);
+
+        bool mc_matched = false;
+        char *match_line = NULL;
+        char *mc_matched_str;
+        if (curr_leaf_is_comment_and_does_not_share_lines_with_prev_nor_next_leaf) {
+            uint32_t curr_byte = ftell(payload.file);
+
+            size_t len = 0;
+            ssize_t res;
+            if((res = getline(&match_line, &len, payload.file)) != -1) {
+                char pattern[] = "\\s*#+ (.*)";
+                int matched_len;
+                mc_matched = mc_match(
+                    pattern, match_line, len,
+                    &mc_matched_str, &matched_len
+                );
+            }
+
+            if (!mc_matched) {
+                // restore file postion
+                fseek(payload.file, curr_byte, SEEK_SET);
+            }
+        }
+
+        if (curr_leaf_is_comment_and_does_not_share_lines_with_prev_nor_next_leaf && mc_matched) {
             if (!markdown) {
                 printf("```\n\n");
                 markdown = true;
             }
+            printf("%s", mc_matched_str);
         } else {
             uint32_t curr_start_byte = ts_node_start_byte(curr_leaf);
             uint32_t curr_column = ts_node_start_point(curr_leaf).column;
@@ -145,8 +173,10 @@ int main(int argc, char **argv) {
                 printf("\n```nix\n");
                 markdown = false;
             }
+            print_lines_until_byte(payload.file, ts_node_end_byte(curr_leaf));
         }
-        print_lines_until_byte(payload.file, ts_node_end_byte(curr_leaf));
+
+        if (match_line) free(match_line);
 
         prev_leaf = curr_leaf;
         curr_leaf = next_leaf;
