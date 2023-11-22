@@ -85,6 +85,16 @@ void print_lines_until_byte(FILE *file, uint32_t until_byte) {
     if (line) free(line);
 }
 
+bool curr_leaf_does_not_share_lines_with_prev_nor_next_leaf(
+    TSNode prev_leaf, TSNode curr_leaf, TSNode next_leaf
+) {
+    if (prev_leaf.id && ts_node_end_point(prev_leaf).row == ts_node_start_point(curr_leaf).row)
+        return false;
+    if (next_leaf.id && ts_node_start_point(next_leaf).row == ts_node_end_point(curr_leaf).row)
+        return false;
+    return true;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         printf("Usage: %s <nix file>\n", argv[0]);
@@ -119,9 +129,7 @@ int main(int argc, char **argv) {
     bool markdown = true;
     while (curr_leaf.id) {
         if (ts_node_symbol(curr_leaf) == TSSymbol_comment &&
-            // current comment node does not share lines with prev nor next node
-            (!prev_leaf.id || (prev_leaf.id && ts_node_end_point(prev_leaf).row != ts_node_start_point(curr_leaf).row)) &&
-            (!next_leaf.id || (next_leaf.id && ts_node_start_point(next_leaf).row != ts_node_end_point(curr_leaf).row))
+            curr_leaf_does_not_share_lines_with_prev_nor_next_leaf(prev_leaf, curr_leaf, next_leaf)
         ) {
             if (!markdown) {
                 printf("```\n\n");
