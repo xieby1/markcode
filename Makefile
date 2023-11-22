@@ -1,13 +1,16 @@
-all: markcode
+all: bin/markcode
+bin/markcode: src/markcode
+	mkdir -p bin/
+	cp $< $@
 
-CFLAGS += -MMD
--include $(patsubst %.c,%.d,$(wildcard *.c))
-
+CFLAGS += -MMD -Isrc/include
 LDFLAGS += -lpcre2-8 -ltree-sitter ${TREESITTER_PARSERS}
+-include $(patsubst %.c,%.d,$(shell find src/ -name "*.c"))
 
-markcode: markcode.o re.o types.o
+src/markcode: src/markcode.o src/re.o src/types.o
 
 clean:
-	rm -f *.o
-	rm -f *.d
-	rm -f markcode
+	rm -f src/*.o
+	rm -f src/*.d
+	rm -f src/markcode
+	rm -rf bin/
