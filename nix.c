@@ -2,8 +2,7 @@
 #include <tree_sitter/api.h>
 
 #include "re.h"
-
-TSLanguage *tree_sitter_nix();
+#include "types.h"
 
 typedef struct {
     FILE *file;
@@ -112,16 +111,23 @@ int main(int argc, char **argv) {
         abort();
     }
 
+    TSLanguage *ts;
+    char *lang;
+    char *pattern;
+    if (!get_ts_lang_and_pattern_by_filename(file_path, &ts, &lang, &pattern)) {
+        fprintf(stderr, "Unsupported file format %s\n", file_path);
+        exit(0);
+    }
+    fprintf(stderr, "lang: %s, pattern %s\n", lang, pattern);
+
     TSParser *parser = ts_parser_new();
-    ts_parser_set_language(parser, tree_sitter_nix());
+    ts_parser_set_language(parser, ts);
 
     TSInput input = {&payload, file_read, /*TODO: detect file encoding*/TSInputEncodingUTF8};
     TSTree *tree = ts_parser_parse(parser, NULL, input);
     TSNode root_node = ts_tree_root_node(tree);
 
-    const TSSymbol TSSymbol_comment = ts_language_symbol_for_name(
-        tree_sitter_nix(), "comment", 7, true
-    );
+    const TSSymbol TSSymbol_comment = ts_language_symbol_for_name(ts, "comment", 7, true);
     LeafIter iter;
     TSNode prev_leaf={0}, curr_leaf={0}, next_leaf={0};
     leaf_iter_init(&iter, root_node);
@@ -143,7 +149,6 @@ int main(int argc, char **argv) {
             size_t len = 0;
             ssize_t res;
             if((res = getline(&match_line, &len, payload.file)) != -1) {
-                char pattern[] = "\\s*#+ (.*)";
                 int matched_len;
                 mc_matched = mc_match(
                     pattern, match_line, len,
@@ -170,7 +175,7 @@ int main(int argc, char **argv) {
             print_lines_until_byte(payload.file, curr_row_start_byte);
 
             if (markdown) {
-                printf("\n```nix\n");
+                printf("\n```%s\n", lang);
                 markdown = false;
             }
             print_lines_until_byte(payload.file, ts_node_end_byte(curr_leaf));

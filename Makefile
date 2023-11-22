@@ -5,7 +5,7 @@ CFLAGS += -MMD
 
 LDFLAGS += -lpcre2-8 -ltree-sitter ${TREESITTER_PARSERS}
 
-nix: nix.o re.o
+nix: nix.o re.o types.o
 
 clean:
 	rm *.o
