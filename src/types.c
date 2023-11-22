@@ -9,7 +9,7 @@ bool get_ts_lang_and_pattern_by_ext(
 ) {
     for (int typei = 0; typei < types_len; typei++) {
         const Type *type = &types[typei];
-        for (int exti = 0; exti < type->exts_len; exti++) {
+        for (int exti = 0; exti < MAX_EXTS && type->exts[exti]; exti++) {
             if (!strcmp(ext, type->exts[exti])) {
                 *ts = type->ts_func();
                 *lang = type->lang;
