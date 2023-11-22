@@ -5,12 +5,16 @@
 
 #include "re.h"
 
-bool mc_match(
+void mc_match(
     // input
     char *pattern, char *subject, int subject_len,
     // output
-    char **matched_str, int *matched_len
+    char **md, int *md_len, char **cf, int *cf_len
 ) {
+    *md = NULL;
+    *md_len = -1;
+    *cf = NULL;
+    *cf_len = -1;
 
     int errorcode;
     PCRE2_SIZE erroffset;
@@ -27,7 +31,7 @@ bool mc_match(
         PCRE2_UCHAR buffer[256];
         pcre2_get_error_message(errorcode, buffer, sizeof(buffer));
         fprintf(stderr, "PCRE2 compilation failed at offset %d: %s\n", (int)erroffset, buffer);
-        return false;
+        return;
     }
 
     pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(re, NULL);
@@ -41,7 +45,6 @@ bool mc_match(
         NULL
     );
 
-    bool ret_val = false;
     if (rc < 0) {
         if (rc == PCRE2_ERROR_NOMATCH) {
             /* fprintf(stderr, "No match\n"); */
@@ -72,19 +75,23 @@ bool mc_match(
             // The following snippets are based on pcre2 demo
             char *name = (char *)tabptr + 2;
             if (!strcmp("md", name)) {
-                *matched_str = subject + ovector[2*n];
-                *matched_len = ovector[2*n+1] - ovector[2*n];
-                ret_val = true;
-                goto free;
+                *md = subject + ovector[2*n];
+                *md_len = ovector[2*n+1] - ovector[2*n];
+            } else if (!strcmp("cf", name)) {
+                *cf = subject + ovector[2*n];
+                *cf_len = ovector[2*n+1] - ovector[2*n];
             }
             tabptr += name_entry_size;
         }
     }
 
-    *matched_str = NULL;
-    *matched_len = 0;
+    // ignore cf line
+    if (*cf_len > 0) {
+        *md = NULL;
+        *md_len = -1;
+    }
+
 free:
     pcre2_match_data_free(match_data);
     pcre2_code_free(re);
-    return ret_val;
 }

@@ -1,3 +1,6 @@
+//MC # MarkCode
+//MC
+//MC{hide}
 #include <stdbool.h>
 #include <tree_sitter/api.h>
 
@@ -13,9 +16,11 @@ TSLanguage *tree_sitter_c();
 TSLanguage *tree_sitter_cpp();
 TSLanguage *tree_sitter_nix();
 static const Type types[] = {
-    {"c",       tree_sitter_c,      {"c", "h", NULL},                             "\\s*//+ (?<md>.*)"},
-    {"cpp",     tree_sitter_cpp,    {"cc", "cpp", "hh", "hpp", NULL},             "\\s*//+ (?<md>.*)"},
-    {"nix",     tree_sitter_nix,    {"nix", NULL},                                "\\s*#+ (?<md>.*)"},
+//MC{visible}
+//MC ## Patterns
+    {"c",       tree_sitter_c,      {"c", "h", NULL},                             "\\s*//+MC({(?<cf>[^}]*)})?(\\s?(?<md>.*\\n))"},
+    {"cpp",     tree_sitter_cpp,    {"cc", "cpp", "hh", "hpp", NULL},             "\\s*//+MC({(?<cf>[^}]*)})?(\\s?(?<md>.*\\n))"},
+    {"nix",     tree_sitter_nix,    {"nix", NULL},                                 "\\s*#+MC({(?<cf>[^}]*)})?(\\s?(?<md>.*\\n))"},
 };
 #define types_len sizeof(types) / sizeof(Type)
 

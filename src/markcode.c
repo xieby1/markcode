@@ -3,6 +3,7 @@
 
 #include "re.h"
 #include "types.h"
+#include "context.h"
 
 typedef struct {
     FILE *file;
@@ -74,13 +75,14 @@ void leaf_iter_fini(LeafIter *iter) {
     ts_tree_cursor_delete(&iter->cursor);
 }
 
-void print_lines_until_byte(FILE *file, uint32_t until_byte) {
+void print_lines_until_byte(FILE *file, uint32_t until_byte, Context *context) {
     char *line = NULL;
     size_t len = 0;
     ssize_t res;
     for (uint32_t curr_byte = ftell(file); curr_byte < until_byte; curr_byte = ftell(file)) {
         if((res = getline(&line, &len, file)) != -1) {
-            printf("%s", line);
+            if (!context->hide)
+                printf("%s", line);
         }
     }
     if (line) free(line);
@@ -135,50 +137,55 @@ int main(int argc, char **argv) {
     leaf_iter_next(&iter, &next_leaf);
     rewind(payload.file);
     bool markdown = true;
+    Context context = {
+        .hide = false,
+    };
     while (curr_leaf.id) {
         bool curr_leaf_is_comment_and_does_not_share_lines_with_prev_nor_next_leaf =
             ts_node_symbol(curr_leaf) == TSSymbol_comment &&
             curr_leaf_does_not_share_lines_with_prev_nor_next_leaf(prev_leaf, curr_leaf, next_leaf);
 
-        bool mc_matched = false;
         char *match_line = NULL;
-        char *mc_matched_str;
+        char *md = NULL;
+        int md_len = -1;
+        char *cf = NULL;
+        int cf_len = -1;
         if (curr_leaf_is_comment_and_does_not_share_lines_with_prev_nor_next_leaf) {
             uint32_t curr_byte = ftell(payload.file);
 
             size_t len = 0;
-            ssize_t res;
-            if((res = getline(&match_line, &len, payload.file)) != -1) {
-                int matched_len;
-                mc_matched = mc_match(
+            if(getline(&match_line, &len, payload.file) != -1) {
+                mc_match(
                     pattern, match_line, len,
-                    &mc_matched_str, &matched_len
+                    &md, &md_len, &cf, &cf_len
                 );
             }
 
-            if (!mc_matched) {
+            if (md_len == -1) {
                 // restore file postion
                 fseek(payload.file, curr_byte, SEEK_SET);
             }
+            if (cf_len)
+                update_context_by_conf(&context, cf, cf_len);
         }
 
-        if (curr_leaf_is_comment_and_does_not_share_lines_with_prev_nor_next_leaf && mc_matched) {
+        if (curr_leaf_is_comment_and_does_not_share_lines_with_prev_nor_next_leaf && md_len!=-1) {
             if (!markdown) {
                 printf("```\n\n");
                 markdown = true;
             }
-            printf("%s", mc_matched_str);
+            printf("%s", md);
         } else {
             uint32_t curr_start_byte = ts_node_start_byte(curr_leaf);
             uint32_t curr_column = ts_node_start_point(curr_leaf).column;
             uint32_t curr_row_start_byte = curr_start_byte - curr_column;
-            print_lines_until_byte(payload.file, curr_row_start_byte);
+            print_lines_until_byte(payload.file, curr_row_start_byte, &context);
 
-            if (markdown) {
+            if (markdown && !context.hide) {
                 printf("\n```%s\n", lang);
                 markdown = false;
             }
-            print_lines_until_byte(payload.file, ts_node_end_byte(curr_leaf));
+            print_lines_until_byte(payload.file, ts_node_end_byte(curr_leaf), &context);
         }
 
         if (match_line) free(match_line);
