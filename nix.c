@@ -73,6 +73,18 @@ void leaf_iter_fini(LeafIter *iter) {
     ts_tree_cursor_delete(&iter->cursor);
 }
 
+void print_lines_until_byte(FILE *file, uint32_t until_byte) {
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t res;
+    for (uint32_t curr_byte = ftell(file); curr_byte < until_byte; curr_byte = ftell(file)) {
+        if((res = getline(&line, &len, file)) != -1) {
+            printf("%s", line);
+        }
+    }
+    if (line) free(line);
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         printf("Usage: %s <nix file>\n", argv[0]);
@@ -116,25 +128,17 @@ int main(int argc, char **argv) {
                 markdown = true;
             }
         } else {
+            uint32_t curr_start_byte = ts_node_start_byte(curr_leaf);
+            uint32_t curr_column = ts_node_start_point(curr_leaf).column;
+            uint32_t curr_row_start_byte = curr_start_byte - curr_column;
+            print_lines_until_byte(payload.file, curr_row_start_byte);
+
             if (markdown) {
                 printf("\n```nix\n");
                 markdown = false;
             }
         }
-
-        char *line = NULL;
-        size_t len = 0;
-        ssize_t res;
-        for (
-            long curr_byte = ftell(payload.file);
-            curr_byte < ts_node_end_byte(curr_leaf);
-            curr_byte = ftell(payload.file)
-        ) {
-            if((res = getline(&line, &len, payload.file)) != -1) {
-                printf("%s", line);
-            }
-        }
-        if (line) free(line);
+        print_lines_until_byte(payload.file, ts_node_end_byte(curr_leaf));
 
         prev_leaf = curr_leaf;
         curr_leaf = next_leaf;
