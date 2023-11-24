@@ -12,6 +12,7 @@
     pcre2
   ];
   TREESITTER_PARSERS = lib.concatMapStringsSep " " (x: x+"/parser") (with tree-sitter-grammars; [
+    tree-sitter-bash
     tree-sitter-c
     tree-sitter-cpp
     tree-sitter-nix
