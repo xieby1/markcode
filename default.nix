@@ -18,4 +18,8 @@
     tree-sitter-nix
   ]);
   MANPATH = "${pcre2.devdoc}/share/man:";
+  installPhase = ''
+    mkdir -p $out
+    cp -r bin $out/
+  '';
 }
