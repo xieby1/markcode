@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Unsupported file format %s\n", file_path);
         exit(0);
     }
-    fprintf(stderr, "lang: %s, pattern %s\n", lang, pattern);
+    /* fprintf(stderr, "lang: %s, pattern %s\n", lang, pattern); */
 
     TSParser *parser = ts_parser_new();
     ts_parser_set_language(parser, ts);
