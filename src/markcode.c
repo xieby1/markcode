@@ -165,7 +165,7 @@ int main(int argc, char **argv) {
                 // restore file postion
                 fseek(payload.file, curr_byte, SEEK_SET);
             }
-            if (cf_len)
+            if (cf_len > 0)
                 update_context_by_conf(&context, cf, cf_len);
         }
 
