@@ -141,6 +141,12 @@ int main(int argc, char **argv) {
         .hide = false,
     };
     while (curr_leaf.id) {
+        // make sure we are are the same line as curr_leaf
+        const uint32_t curr_start_byte = ts_node_start_byte(curr_leaf);
+        const uint32_t curr_column = ts_node_start_point(curr_leaf).column;
+        const uint32_t curr_row_start_byte = curr_start_byte - curr_column;
+        print_lines_until_byte(payload.file, curr_row_start_byte, &context);
+
         bool curr_leaf_is_comment_and_does_not_share_lines_with_prev_nor_next_leaf =
             ts_node_symbol(curr_leaf) == TSSymbol_comment &&
             curr_leaf_does_not_share_lines_with_prev_nor_next_leaf(prev_leaf, curr_leaf, next_leaf);
@@ -176,11 +182,6 @@ int main(int argc, char **argv) {
             }
             printf("%s", md);
         } else {
-            uint32_t curr_start_byte = ts_node_start_byte(curr_leaf);
-            uint32_t curr_column = ts_node_start_point(curr_leaf).column;
-            uint32_t curr_row_start_byte = curr_start_byte - curr_column;
-            print_lines_until_byte(payload.file, curr_row_start_byte, &context);
-
             if (markdown && !context.hide) {
                 printf("\n```%s\n", lang);
                 markdown = false;
