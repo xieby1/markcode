@@ -23,6 +23,7 @@ static const Type types[] = {
     {"c",       tree_sitter_c,      {"c", "h", NULL},                             "\\s*//+MC({(?<cf>[^}]*)})?( ?(?<md>.*\\n))"},
     {"cpp",     tree_sitter_cpp,    {"cc", "cpp", "hh", "hpp", NULL},             "\\s*//+MC({(?<cf>[^}]*)})?( ?(?<md>.*\\n))"},
     {"nix",     tree_sitter_nix,    {"nix", NULL},                                 "\\s*#+MC({(?<cf>[^}]*)})?( ?(?<md>.*\\n))"},
+    {"scala",   tree_sitter_cpp,    {"scala", NULL},                              "\\s*//+MC({(?<cf>[^}]*)})?( ?(?<md>.*\\n))"},
 };
 #define types_len sizeof(types) / sizeof(Type)
 

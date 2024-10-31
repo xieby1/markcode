@@ -100,7 +100,7 @@ bool curr_leaf_does_not_share_lines_with_prev_nor_next_leaf(
 
 int main(int argc, char **argv) {
     if (argc <= 1) {
-        printf("Usage: %s <nix file>\n", argv[0]);
+        printf("Usage: %s <source file>\n", argv[0]);
         return 0;
     }
     char *file_path = argv[1];
