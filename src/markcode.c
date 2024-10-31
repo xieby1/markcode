@@ -171,8 +171,11 @@ int main(int argc, char **argv) {
                 // restore file postion
                 fseek(payload.file, curr_byte, SEEK_SET);
             }
-            if (cf_len > 0)
+            if (cf_len > 0) {
                 update_context_by_conf(&context, cf, cf_len);
+                // skip this cf line
+                getline(&match_line, &len, payload.file);
+            }
         }
 
         if (curr_leaf_is_comment_and_does_not_share_lines_with_prev_nor_next_leaf && md_len!=-1) {
